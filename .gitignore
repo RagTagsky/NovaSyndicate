@@ -1,162 +1,107 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, CallbackContext, ChatMemberHandler
+from telegram.error import TelegramError
 
-# C extensions
-*.so
+# Замени на свой Telegram ID и юзернейм
+ADMIN_ID = 1688653559
+ADMIN_USERNAME = "@RagTagsky769844"
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Максимальное количество участников в группе
+MAX_MEMBERS = 33
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# Ссылки на клубы
+clubs = {
+    "gamma": "https://t.me/+VY7iQKOg94IwN2Ji",
+    "beta": "https://t.me/+R9YbP65irVgwYjQy",
+    "alpha": "https://t.me/+QKu867JtShYwNDUy"
+}
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Функция для обработки команды /start
+async def start(update: Update, context: CallbackContext) -> None:
+    keyboard = [
+        [InlineKeyboardButton("Поддержка", callback_data="support")],
+        [InlineKeyboardButton("Частые вопросы", callback_data="faq")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "Привет! Напиши, сколько у тебя трофеев, чтобы я мог определить, в какой клуб тебя отправить.\n"
+        "Или воспользуйся кнопками ниже.",
+        reply_markup=reply_markup
+    )
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
+# Функция для обработки трофеев
+async def handle_trophies(update: Update, context: CallbackContext) -> None:
+    try:
+        trophies = int(update.message.text)
+        if 10000 < trophies < 20000:
+            club = "gamma"
+        elif 20000 < trophies < 30000:
+            club = "beta"
+        elif trophies > 30000:
+            club = "alpha"
+        else:
+            await update.message.reply_text("К сожалению, у тебя недостаточно трофеев для наших клубов.")
+            return
+        await update.message.reply_text(f"Ты подходишь для клуба Νονα {club.capitalize()}! Вот ссылка: {clubs[club]}")
+    except ValueError:
+        await update.message.reply_text("Пожалуйста, отправь только число трофеев.")
 
-# Translations
-*.mo
-*.pot
+# Функция для обработки нажатия кнопок
+async def button_handler(update: Update, context: CallbackContext) -> None:
+    query = update.callback_query
+    await query.answer()
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+    if query.data == "faq":
+        await query.message.reply_text(
+            "Часто задаваемый вопрос:\n\n"
+            "Что такое +ник?\n"
+            "Ответ: Ты должен написать '+ник' в чат своего клуба. Пиши именно '+ник' без пробелов и чего-либо ещё. "
+            "Это команда для триггера бота, который там установлен. После отправки он выдаст тебе дальнейшую инструкцию."
+        )
+    elif query.data == "support":
+        await query.message.reply_text(f"Для связи с администратором напиши {ADMIN_USERNAME}.")
 
-# Flask stuff:
-instance/
-.webassets-cache
+# Функция для обработки новых участников группы
+async def check_members(update: Update, context: CallbackContext) -> None:
+    try:
+        chat_id = update.chat_member.chat.id
+        members_count = await context.bot.get_chat_members_count(chat_id)
 
-# Scrapy stuff:
-.scrapy
+        if members_count >= MAX_MEMBERS:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"Внимание! В группе уже {members_count} участников. Максимум — {MAX_MEMBERS}. "
+                     "Пожалуйста, освободите место или создайте новую группу."
+            )
+    except TelegramError as e:
+        print(f"Ошибка при проверке участников: {e}")
 
-# Sphinx documentation
-docs/_build/
+# Функция для обработки сообщений через поддержку
+async def handle_support_message(update: Update, context: CallbackContext) -> None:
+    if update.message.reply_to_message and update.message.reply_to_message.from_user.id == ADMIN_ID:
+        # Отправка ответа пользователю
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text=f"Ответ от администратора: {update.message.text}"
+        )
+    elif update.message.chat_id == ADMIN_ID:
+        # Пересылка сообщений от пользователей админу
+        await context.bot.forward_message(chat_id=ADMIN_ID, from_chat_id=update.message.chat_id, message_id=update.message.message_id)
 
-# PyBuilder
-.pybuilder/
-target/
+# Обработчик ошибок
+async def error_handler(update: Update, context: CallbackContext) -> None:
+    print(f"Произошла ошибка: {context.error}")
+    if update and update.message:
+        await update.message.reply_text("Ой! Что-то пошло не так. Попробуй ещё раз.")
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-#poetry.lock
-
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#pdm.lock
-#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
-#   in version control.
-#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+# Основной код
+if __name__ == "__main__":
+    app = ApplicationBuilder().token("7925692692:AAEgJm2qdvxjCECS1PRojVA3sAzXnGV5q4s").build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_trophies))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(ChatMemberHandler(check_members, ChatMemberHandler.CHAT_MEMBER))
+    app.add_handler(MessageHandler(filters.REPLY, handle_support_message))
+    app.add_error_handler(error_handler)
+    print("Бот запущен. Нажми Ctrl+C для остановки.")
+    app.run_polling()
